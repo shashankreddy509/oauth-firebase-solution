@@ -44,18 +44,20 @@ fi
 
 echo "✅ Environment variables loaded successfully"
 
-# Set Firebase Functions configuration for PRODUCTION
-echo "🔧 Setting Firebase Functions config for PRODUCTION..."
+# Create .env file for Firebase Functions deployment
+echo "🔧 Setting up environment variables for PRODUCTION deployment..."
 
-firebase functions:config:set \
-  plaid.client_id="$PLAID_CLIENT_ID" \
-  plaid.secret="$PLAID_SECRET" \
-  plaid.environment="production" \
-  fyers.app_id="$FYERS_APP_ID" \
-  fyers.app_secret="$FYERS_APP_SECRET" \
-  app.environment="production"
+# Create .env file in functions directory for deployment
+cat > .env << EOF
+PLAID_CLIENT_ID=$PLAID_CLIENT_ID
+PLAID_SECRET=$PLAID_SECRET
+PLAID_ENVIRONMENT=production
+FYERS_APP_ID=$FYERS_APP_ID
+FYERS_APP_SECRET=$FYERS_APP_SECRET
+APP_ENVIRONMENT=production
+EOF
 
-echo "✅ Firebase config set successfully"
+echo "✅ Environment variables configured successfully"
 
 # Deploy functions
 echo "🚀 Deploying Firebase Functions to PRODUCTION..."

@@ -20,116 +20,30 @@ const logger = require("firebase-functions/logger");
 admin.initializeApp();
 const db = admin.firestore();
 
-// Get Firebase Functions configuration
-const config = functions.config();
+// Load environment variables
+require('dotenv').config();
 
-// Configure Plaid using Firebase Functions config
-const plaidEnvironment = config.plaid?.environment === 'production' ? PlaidEnvironments.production : PlaidEnvironments.sandbox;
+// Configure Plaid using environment variables
+const plaidEnvironment = process.env.PLAID_ENVIRONMENT === 'production' ? PlaidEnvironments.production : PlaidEnvironments.sandbox;
 
 const configuration = new Configuration({
   basePath: plaidEnvironment,
   baseOptions: {
     headers: {
-      "PLAID-CLIENT-ID": config.plaid?.client_id,
-      "PLAID-SECRET": config.plaid?.secret,
+      "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID,
+      "PLAID-SECRET": process.env.PLAID_SECRET,
     },
   },
 });
 
 // Validate required configuration
-if (!config.plaid?.client_id || !config.plaid?.secret) {
-  throw new Error('Missing required Plaid configuration. Run: firebase functions:config:set plaid.client_id="..." plaid.secret="..."');
+if (!process.env.PLAID_CLIENT_ID || !process.env.PLAID_SECRET) {
+  throw new Error('Missing required Plaid configuration. Please set PLAID_CLIENT_ID and PLAID_SECRET environment variables.');
 }
 
 const plaidClient = new PlaidApi(configuration);
 
-// 🔄 Exchange public token for access token
-exports.exchangePublicToken = functions.https.onCall(async (data, context) => {
-  try {
-    const { public_token } = data;
-    const userId = context.auth.uid;
-
-    const response = await plaidClient.itemPublicTokenExchange({ public_token });
-    const accessToken = response.data.access_token;
-    const itemId = response.data.item_id;
-
-    // Store securely in Firestore
-    await db.collection("users").doc(userId).set({
-      accessToken,
-      itemId,
-    }, { merge: true });
-
-    return { status: "success" };
-  } catch (error) {
-    console.error("Error exchanging token:", error);
-    throw new functions.https.HttpsError("internal", "Unable to exchange token.");
-  }
-});
-
-// 🔍 Fetch transactions for a date range
-exports.getTransactions = functions.https.onCall(async (data, context) => {
-  try {
-    const { startDate, endDate } = data;
-    const userId = context.auth.uid;
-
-    const userDoc = await db.collection("users").doc(userId).get();
-    if (!userDoc.exists) {
-      throw new functions.https.HttpsError("not-found", "User not found.");
-    }
-
-    const accessToken = userDoc.data().accessToken;
-
-    const response = await plaidClient.transactionsGet({
-      access_token: accessToken,
-      start_date: startDate,
-      end_date: endDate,
-      options: {
-        count: 100,
-        offset: 0,
-      },
-    });
-
-    const transactions = response.data.transactions;
-
-    // Optionally store in Firestore
-    const batch = db.batch();
-    const userTxnRef = db.collection("users").doc(userId).collection("transactions");
-    transactions.forEach(txn => {
-      batch.set(userTxnRef.doc(txn.transaction_id), txn, { merge: true });
-    });
-    await batch.commit();
-
-    return { status: "success", transactions };
-  } catch (error) {
-    console.error("Error fetching transactions:", error);
-    throw new functions.https.HttpsError("internal", "Unable to fetch transactions.");
-  }
-});
-
-// 🧷 Generate a link_token for Plaid Link
-exports.createLinkToken = functions.https.onCall(async (data, context) => {
-  try {
-    const userId = context.auth.uid;
-
-    const response = await plaidClient.linkTokenCreate({
-      user: {
-        client_user_id: userId,
-      },
-      client_name: "CMP Expense Tracker",
-      products: ["transactions"],
-      country_codes: ["US"],
-      language: "en",
-      redirect_uri: "", // Optional for OAuth flows
-    });
-
-    return {
-      link_token: response.data.link_token,
-    };
-  } catch (error) {
-    console.error("Error creating link token:", error.response?.data || error);
-    throw new functions.https.HttpsError("internal", "Unable to create link token.");
-  }
-});
+// Note: Plaid functions have been moved to Express API endpoints below
 
 // Create Express app
 const app = express();
@@ -169,6 +83,186 @@ async function isUserRegistered(userId) {
     const userDoc = await db.collection('users').doc(userId).get();
     return userDoc.exists;
 }
+
+// Helper function to authenticate user from request headers
+async function authenticateUser(req) {
+    const authHeader = req.headers.authorization;
+    if (!authHeader || !authHeader.startsWith('Bearer ')) {
+        throw new Error('Missing or invalid authorization header');
+    }
+    
+    const idToken = authHeader.split('Bearer ')[1];
+    try {
+        const decodedToken = await admin.auth().verifyIdToken(idToken);
+        return decodedToken.uid;
+    } catch (error) {
+        throw new Error('Invalid authentication token');
+    }
+}
+
+// =============================================================================
+// PLAID API ENDPOINTS
+// =============================================================================
+
+// 🔄 Exchange public token for access token
+app.post('/plaid/exchange-token', async (req, res) => {
+    try {
+        const { public_token } = req.body;
+        
+        // Validate required fields
+        validateRequiredFields(req.body, ['public_token']);
+        
+        // Authenticate user
+        const userId = await authenticateUser(req);
+        
+        console.log('Plaid token exchange request for user:', userId);
+        
+        const response = await plaidClient.itemPublicTokenExchange({ public_token });
+        const accessToken = response.data.access_token;
+        const itemId = response.data.item_id;
+
+        // Store securely in Firestore
+        await db.collection("users").doc(userId).set({
+            accessToken,
+            itemId,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        }, { merge: true });
+
+        console.log('Plaid token exchanged successfully for user:', userId);
+
+        res.status(200).json({
+            success: true,
+            message: 'Token exchanged successfully',
+            itemId: itemId
+        });
+        
+    } catch (error) {
+        console.error('Plaid token exchange error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 🔍 Fetch transactions for a date range
+app.post('/plaid/get-transactions', async (req, res) => {
+    try {
+        const { startDate, endDate, count = 100, offset = 0 } = req.body;
+        
+        // Validate required fields
+        validateRequiredFields(req.body, ['startDate', 'endDate']);
+        
+        // Authenticate user
+        const userId = await authenticateUser(req);
+        
+        console.log('Plaid transactions request for user:', userId, { startDate, endDate });
+        
+        const userDoc = await db.collection("users").doc(userId).get();
+        if (!userDoc.exists) {
+            return res.status(404).json({
+                success: false,
+                error: 'User not found'
+            });
+        }
+
+        const userData = userDoc.data();
+        if (!userData.accessToken) {
+            return res.status(400).json({
+                success: false,
+                error: 'No Plaid access token found for user. Please link your bank account first.'
+            });
+        }
+
+        const response = await plaidClient.transactionsGet({
+            access_token: userData.accessToken,
+            start_date: startDate,
+            end_date: endDate,
+            options: {
+                count: Math.min(count, 500), // Limit to 500 max
+                offset: offset,
+            },
+        });
+
+        const transactions = response.data.transactions;
+        const totalTransactions = response.data.total_transactions;
+
+        // Optionally store in Firestore
+        const batch = db.batch();
+        const userTxnRef = db.collection("users").doc(userId).collection("transactions");
+        transactions.forEach(txn => {
+            batch.set(userTxnRef.doc(txn.transaction_id), {
+                ...txn,
+                fetchedAt: admin.firestore.FieldValue.serverTimestamp()
+            }, { merge: true });
+        });
+        await batch.commit();
+
+        console.log(`Fetched ${transactions.length} transactions for user:`, userId);
+
+        res.status(200).json({
+            success: true,
+            data: {
+                transactions: transactions,
+                total_transactions: totalTransactions,
+                count: transactions.length,
+                offset: offset
+            }
+        });
+        
+    } catch (error) {
+        console.error('Plaid transactions fetch error:', error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// 🧷 Generate a link_token for Plaid Link
+app.post('/plaid/create-link-token', async (req, res) => {
+    try {
+        const { client_name = "CMP Expense Tracker", products = ["transactions"], country_codes = ["US"], language = "en" } = req.body;
+        
+        // Authenticate user
+        const userId = await authenticateUser(req);
+        
+        console.log('Plaid link token creation request for user:', userId);
+
+        const response = await plaidClient.linkTokenCreate({
+            user: {
+                client_user_id: userId,
+            },
+            client_name: client_name,
+            products: products,
+            country_codes: country_codes,
+            language: language,
+            redirect_uri: "", // Optional for OAuth flows
+        });
+
+        console.log('Plaid link token created successfully for user:', userId);
+
+        res.status(200).json({
+            success: true,
+            link_token: response.data.link_token,
+            expiration: response.data.expiration
+        });
+        
+    } catch (error) {
+        console.error('Plaid link token creation error:', error.response?.data || error);
+        res.status(500).json({
+            success: false,
+            error: error.message,
+            timestamp: new Date().toISOString()
+        });
+    }
+});
+
+// =============================================================================
+// FYERS OAUTH ENDPOINTS
+// =============================================================================
 
 // Endpoint 1: Exchange auth code for token and save to Firestore
 app.post('/oauth/exchange-token', async (req, res) => {
