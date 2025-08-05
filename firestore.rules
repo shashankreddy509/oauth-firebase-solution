@@ -1,0 +1,15 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // OAuth tokens collection
+    match /oauth_tokens/{tokenId} {
+      // Only allow server-side access to tokens
+      allow read, write: if false;
+    }
+    
+    // You can add other collections here
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

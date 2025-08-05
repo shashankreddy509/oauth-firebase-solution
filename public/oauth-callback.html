@@ -1,0 +1,293 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>OAuth Callback - Fyers Trading Platform</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+        }
+        
+        .container {
+            background: white;
+            padding: 2rem;
+            border-radius: 12px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+            text-align: center;
+            max-width: 500px;
+            width: 90%;
+        }
+        
+        .loading {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+        }
+        
+        .spinner {
+            width: 40px;
+            height: 40px;
+            border: 4px solid #f3f3f3;
+            border-top: 4px solid #667eea;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+        
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+        
+        .success {
+            color: #28a745;
+        }
+        
+        .error {
+            color: #dc3545;
+        }
+        
+        .info {
+            background: #f8f9fa;
+            padding: 1rem;
+            border-radius: 8px;
+            margin-top: 1rem;
+            font-family: monospace;
+            font-size: 0.9rem;
+            text-align: left;
+            word-break: break-all;
+        }
+        
+        .button {
+            background: #667eea;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 1rem;
+            margin-top: 1rem;
+            transition: background 0.3s;
+        }
+        
+        .button:hover {
+            background: #5a67d8;
+        }
+        
+        .hidden {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div id="loading" class="loading">
+            <div class="spinner"></div>
+            <h2>Processing OAuth Callback...</h2>
+            <p>Please wait while we handle your authentication.</p>
+        </div>
+        
+        <div id="success" class="hidden">
+            <h2 class="success">✅ Authentication Successful!</h2>
+            <p>Your OAuth flow has been completed successfully.</p>
+            <div id="authInfo" class="info"></div>
+            <button class="button" onclick="closeWindow()">Close Window</button>
+        </div>
+        
+        <div id="error" class="hidden">
+            <h2 class="error">❌ Authentication Error</h2>
+            <p id="errorMessage">An error occurred during authentication.</p>
+            <div id="errorInfo" class="info"></div>
+            <button class="button" onclick="retryAuth()">Try Again</button>
+        </div>
+    </div>
+
+    <script>
+        // Configuration - Update these values for your specific OAuth setup
+        const CONFIG = {
+            // For Fyers API integration
+            fyersAuthURL: 'https://api-t1.fyers.in/api/v3/validate-authcode',
+            
+            // Your app's redirect URL after successful auth
+            redirectUrl: window.location.origin + '/success',
+            
+            // Whether to show debug information
+            debug: true,
+            
+            // Your Fyers app credentials (set these)
+            appId: 'J5G6UA982Y-100',
+            appSecret: 'ZEMMIS3WWD'
+        };
+
+        // Parse URL parameters
+        function getUrlParams() {
+            const params = new URLSearchParams(window.location.search);
+            return {
+                code: params.get('code'),
+                state: params.get('state'),
+                error: params.get('error'),
+                error_description: params.get('error_description')
+            };
+        }
+
+        // Validate state parameter to prevent CSRF attacks
+        function validateState(receivedState) {
+            const storedState = sessionStorage.getItem('oauth_state');
+            return storedState && storedState === receivedState;
+        }
+
+        // Show different UI states
+        function showLoading() {
+            document.getElementById('loading').classList.remove('hidden');
+            document.getElementById('success').classList.add('hidden');
+            document.getElementById('error').classList.add('hidden');
+        }
+
+        function showSuccess(data) {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('success').classList.remove('hidden');
+            document.getElementById('error').classList.add('hidden');
+            
+            if (CONFIG.debug && data) {
+                document.getElementById('authInfo').innerHTML = `
+                    <strong>Debug Info:</strong><br>
+                    Authorization Code: ${data.code || 'N/A'}<br>
+                    State: ${data.state || 'N/A'}<br>
+                    Timestamp: ${new Date().toISOString()}
+                `;
+            }
+        }
+
+        function showError(message, details = '') {
+            document.getElementById('loading').classList.add('hidden');
+            document.getElementById('success').classList.add('hidden');
+            document.getElementById('error').classList.remove('hidden');
+            
+            document.getElementById('errorMessage').textContent = message;
+            
+            if (details && CONFIG.debug) {
+                document.getElementById('errorInfo').innerHTML = `
+                    <strong>Error Details:</strong><br>
+                    ${details}
+                `;
+            }
+        }
+
+        // Generate app ID hash for Fyers API (similar to your Swift function)
+        function generateAppIdHash() {
+            // This should match your Swift generateAppIdHash() function
+            // You'll need to implement the same hashing logic here
+            // For
+        }
+        // Send token to parent window (for popup flow)
+        function sendTokenToParent(data) {
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'OAUTH_SUCCESS',
+                    data: data
+                }, '*');
+            }
+        }
+
+        // Send error to parent window
+        function sendErrorToParent(error) {
+            if (window.opener) {
+                window.opener.postMessage({
+                    type: 'OAUTH_ERROR',
+                    error: error
+                }, '*');
+            }
+        }
+
+        // Button handlers
+        function closeWindow() {
+            if (window.opener) {
+                window.close();
+            } else {
+                // Redirect to main app
+                window.location.href = CONFIG.redirectUrl;
+            }
+        }
+
+        function retryAuth() {
+            // Clear any stored state and redirect back to auth
+            sessionStorage.removeItem('oauth_state');
+            window.location.href = '/';
+        }
+
+        // Main processing function
+        async function processCallback() {
+            const params = getUrlParams();
+            
+            // Check for OAuth errors first
+            if (params.error) {
+                const errorMsg = params.error_description || params.error;
+                showError('OAuth Error: ' + errorMsg, `Error: ${params.error}`);
+                sendErrorToParent(errorMsg);
+                return;
+            }
+
+            // Check if we have an authorization code
+            if (!params.code) {
+                showError('No authorization code received', 'Missing code parameter in callback URL');
+                sendErrorToParent('No authorization code received');
+                return;
+            }
+
+            // Validate state parameter (uncomment if using state)
+            // if (!validateState(params.state)) {
+            //     showError('Invalid state parameter', 'Possible CSRF attack detected');
+            //     sendErrorToParent('Invalid state parameter');
+            //     return;
+            // }
+
+            try {
+                // For demo purposes, we'll just show success with the code
+                // In production, you would exchange the code for tokens here
+                
+                // Uncomment the following lines to enable actual token exchange:
+                /*
+                const tokenData = await exchangeCodeForToken(params.code, params.state);
+                showSuccess(tokenData);
+                sendTokenToParent(tokenData);
+                */
+                
+                // Demo: Just show success with the authorization code
+                showSuccess(params);
+                sendTokenToParent({
+                    code: params.code,
+                    state: params.state
+                });
+                
+            } catch (error) {
+                showError('Token exchange failed', error.message);
+                sendErrorToParent('Token exchange failed: ' + error.message);
+            }
+        }
+
+        // Initialize when page loads
+        document.addEventListener('DOMContentLoaded', function() {
+            // Add a small delay to show the loading state
+            setTimeout(processCallback, 1000);
+        });
+
+        // Handle messages from parent window
+        window.addEventListener('message', function(event) {
+            // Handle any messages from parent if needed
+            console.log('Received message:', event.data);
+        });
+    </script>
+</body>
+</html>
