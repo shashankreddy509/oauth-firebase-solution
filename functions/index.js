@@ -11,6 +11,7 @@ const admin = require('firebase-admin');
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
+const { Configuration, PlaidApi, PlaidEnvironments } = require("plaid");
 
 const {onRequest} = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
@@ -19,6 +20,108 @@ const logger = require("firebase-functions/logger");
 admin.initializeApp();
 const db = admin.firestore();
 
+// Configure Plaid
+// Prod:- ff6207af2cdd737d7af67a76c1f2d1
+// sandbox - bd138f208cb0eb6a8331b1f98c1856
+const configuration = new Configuration({
+  basePath: PlaidEnvironments.production, // use development or production as needed
+  baseOptions: {
+    headers: {
+      "PLAID-CLIENT-ID": "675b66f2a46ba9001943f719",
+      "PLAID-SECRET": "ff6207af2cdd737d7af67a76c1f2d1",
+    },
+  },
+});
+
+const plaidClient = new PlaidApi(configuration);
+
+// 🔄 Exchange public token for access token
+exports.exchangePublicToken = functions.https.onCall(async (data, context) => {
+  try {
+    const { public_token } = data;
+    const userId = context.auth.uid;
+
+    const response = await plaidClient.itemPublicTokenExchange({ public_token });
+    const accessToken = response.data.access_token;
+    const itemId = response.data.item_id;
+
+    // Store securely in Firestore
+    await db.collection("users").doc(userId).set({
+      accessToken,
+      itemId,
+    }, { merge: true });
+
+    return { status: "success" };
+  } catch (error) {
+    console.error("Error exchanging token:", error);
+    throw new functions.https.HttpsError("internal", "Unable to exchange token.");
+  }
+});
+
+// 🔍 Fetch transactions for a date range
+exports.getTransactions = functions.https.onCall(async (data, context) => {
+  try {
+    const { startDate, endDate } = data;
+    const userId = context.auth.uid;
+
+    const userDoc = await db.collection("users").doc(userId).get();
+    if (!userDoc.exists) {
+      throw new functions.https.HttpsError("not-found", "User not found.");
+    }
+
+    const accessToken = userDoc.data().accessToken;
+
+    const response = await plaidClient.transactionsGet({
+      access_token: accessToken,
+      start_date: startDate,
+      end_date: endDate,
+      options: {
+        count: 100,
+        offset: 0,
+      },
+    });
+
+    const transactions = response.data.transactions;
+
+    // Optionally store in Firestore
+    const batch = db.batch();
+    const userTxnRef = db.collection("users").doc(userId).collection("transactions");
+    transactions.forEach(txn => {
+      batch.set(userTxnRef.doc(txn.transaction_id), txn, { merge: true });
+    });
+    await batch.commit();
+
+    return { status: "success", transactions };
+  } catch (error) {
+    console.error("Error fetching transactions:", error);
+    throw new functions.https.HttpsError("internal", "Unable to fetch transactions.");
+  }
+});
+
+// 🧷 Generate a link_token for Plaid Link
+exports.createLinkToken = functions.https.onCall(async (data, context) => {
+  try {
+    const userId = context.auth.uid;
+
+    const response = await plaidClient.linkTokenCreate({
+      user: {
+        client_user_id: userId,
+      },
+      client_name: "CMP Expense Tracker",
+      products: ["transactions"],
+      country_codes: ["US"],
+      language: "en",
+      redirect_uri: "", // Optional for OAuth flows
+    });
+
+    return {
+      link_token: response.data.link_token,
+    };
+  } catch (error) {
+    console.error("Error creating link token:", error.response?.data || error);
+    throw new functions.https.HttpsError("internal", "Unable to create link token.");
+  }
+});
 
 // Create Express app
 const app = express();

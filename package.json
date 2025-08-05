@@ -1,0 +1,5 @@
+{
+  "dependencies": {
+    "plaid": "^37.0.0"
+  }
+}
