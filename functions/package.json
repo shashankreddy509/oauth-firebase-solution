@@ -8,6 +8,11 @@
     "shell": "firebase functions:shell",
     "start": "npm run shell",
     "deploy": "firebase deploy --only functions",
+    "deploy:dev": "./deploy-dev.sh",
+    "deploy:prod": "./deploy-prod.sh",
+    "config": "./config.sh",
+    "config:show": "./config.sh show",
+    "config:validate": "./config.sh validate",
     "logs": "firebase functions:log"
   },
   "engines": {

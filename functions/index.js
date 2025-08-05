@@ -20,18 +20,26 @@ const logger = require("firebase-functions/logger");
 admin.initializeApp();
 const db = admin.firestore();
 
-// Configure Plaid
-// Prod:- ff6207af2cdd737d7af67a76c1f2d1
-// sandbox - bd138f208cb0eb6a8331b1f98c1856
+// Get Firebase Functions configuration
+const config = functions.config();
+
+// Configure Plaid using Firebase Functions config
+const plaidEnvironment = config.plaid?.environment === 'production' ? PlaidEnvironments.production : PlaidEnvironments.sandbox;
+
 const configuration = new Configuration({
-  basePath: PlaidEnvironments.production, // use development or production as needed
+  basePath: plaidEnvironment,
   baseOptions: {
     headers: {
-      "PLAID-CLIENT-ID": "675b66f2a46ba9001943f719",
-      "PLAID-SECRET": "ff6207af2cdd737d7af67a76c1f2d1",
+      "PLAID-CLIENT-ID": config.plaid?.client_id,
+      "PLAID-SECRET": config.plaid?.secret,
     },
   },
 });
+
+// Validate required configuration
+if (!config.plaid?.client_id || !config.plaid?.secret) {
+  throw new Error('Missing required Plaid configuration. Run: firebase functions:config:set plaid.client_id="..." plaid.secret="..."');
+}
 
 const plaidClient = new PlaidApi(configuration);
 
