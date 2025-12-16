@@ -213,14 +213,17 @@ body {
 
 .chart-center-text {
     position: absolute;
-    top: 50%;
+    top: 38%;
     left: 50%;
     transform: translate(-50%, -50%);
     text-align: center;
     pointer-events: none;
+    padding: 0.5rem;
 }
 
 .chart-center-text small {
+    display: block;
+    margin-bottom: 4px;
     font-size: 0.8rem;
     color: var(--text-muted);
 }
