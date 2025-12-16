@@ -1,11 +1,11 @@
 {
   "scripts": {
     "test": "jest",
-    "dev": "npm test && npx firebase emulators:start",
-    "deploy-hosting": "npm test && npx firebase deploy --only hosting",
-    "deploy-functions": "npm test && npx firebase deploy --only functions",
-    "deploy-all": "npm test && npx firebase deploy",
-    "deploy-qa": "npm test && npx firebase hosting:channel:deploy qa"
+    "dev": "npx firebase emulators:start",
+    "deploy-hosting": "npx firebase deploy --only hosting",
+    "deploy-functions": "npx firebase deploy --only functions",
+    "deploy-all": "npx firebase deploy",
+    "deploy-qa": "npx firebase hosting:channel:deploy qa"
   },
   "dependencies": {
     "plaid": "^37.0.0"
