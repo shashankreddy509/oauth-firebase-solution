@@ -12,15 +12,15 @@ const ui = {
     renderAssets: () => {
         const assets = ui.allAssets;
 
-        // 1. Update Global Stats (using ALL assets)
-        ui.updateDashboardStats(assets);
-        ui.renderCharts(assets);
-
-        // 2. Filter for List
+        // 1. Filter for List
         let filtered = assets;
         if (ui.currentFilter !== 'ALL') {
             filtered = assets.filter(a => a.type === ui.currentFilter);
         }
+
+        // 2. Update Stats (using FILTERED assets) & Global Chart
+        ui.updateDashboardStats(filtered);
+        ui.renderCharts(assets);
 
         const container = document.getElementById('assets-list');
         container.innerHTML = '';
@@ -104,6 +104,22 @@ const ui = {
         const netWorth = db.calculateNetWorth(assets);
         const grouped = db.groupAssetsByType(assets);
 
+        // Update Label
+        const labelText = ui.currentFilter === 'ALL' ? 'Total Net Worth' : 'Total ' + ui.currentFilter.charAt(0) + ui.currentFilter.slice(1).toLowerCase() + ' Value';
+        // Simple casing logic. Better: use map.
+        const niceNames = {
+            'ALL': 'Net Worth',
+            'STOCK': 'Stocks Value',
+            'MF': 'Mutual Funds Value',
+            'PROPERTY': 'Property Value',
+            'GOLD': 'Gold Value',
+            'CASH': 'Cash Value'
+        };
+        const displayLabel = niceNames[ui.currentFilter] || 'Total Value';
+
+        const labelEl = document.querySelector('.label-text');
+        if (labelEl) labelEl.textContent = displayLabel;
+
         // Update Big Number
         document.querySelector('.net-worth-value').textContent = parseInt(netWorth).toLocaleString('en-IN');
         document.querySelector('.net-worth-short').textContent = '₹' + parseInt(netWorth).toLocaleString('en-IN');
@@ -119,9 +135,47 @@ const ui = {
 
     // Chart
     renderCharts: (assets) => {
-        const grouped = db.groupAssetsByType(assets);
-        const labels = Object.keys(grouped);
-        const data = Object.values(grouped);
+        console.log("RenderCharts called. Filter:", ui.currentFilter);
+        let labels = [];
+        let data = [];
+
+        // If 'ALL', group by TYPE
+        if (ui.currentFilter === 'ALL') {
+            console.log("Grouping by TYPE");
+            const grouped = db.groupAssetsByType(assets);
+            labels = Object.keys(grouped);
+            data = Object.values(grouped);
+        } else {
+            console.log("Grouping by TICKER/NAME");
+            // If Specific Category, group by NAME/TICKER
+            // We use the 'assets' array which is already filtered in renderAssets logic before passing here?
+            // Actually renderAssets passes 'ui.allAssets' if we see previous code?
+            // Wait, I updated renderAssets to pass 'assets' (which is allAssets) in step 756?
+            // "ui.renderCharts(assets);" <-- this is using allAssets. 
+
+            // Correction: I must filter it HERE again or rely on what's passed.
+            // renderAssets currently does: ui.updateDashboardStats(filtered); ui.renderCharts(assets);
+            // So 'assets' here is ALL assets. I need to filter inside here or change renderAssets.
+            // Let's rely on ui.currentFilter to do the filtering here for safety.
+
+            const filtered = assets.filter(a => a.type === ui.currentFilter);
+            console.log("Filtered Assets for Chart:", filtered.length);
+
+            // Group by Name or Ticker
+            const grouped = filtered.reduce((acc, asset) => {
+                const label = asset.ticker || asset.name;
+                const value = asset.quantity * asset.buyPrice;
+                const valueInINR = utils.convertToINR(value, asset.currency);
+
+                if (!acc[label]) acc[label] = 0;
+                acc[label] += valueInINR;
+                return acc;
+            }, {});
+
+            labels = Object.keys(grouped);
+            data = Object.values(grouped);
+            console.log("Chart Labels:", labels);
+        }
 
         const ctx = document.getElementById('allocationChart');
         if (!ctx) return;

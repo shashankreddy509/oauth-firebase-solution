@@ -47,6 +47,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 3. Filter Tabs
     document.querySelectorAll('.filter-btn').forEach(btn => {
         btn.addEventListener('click', () => {
+            console.log("Filter Button Clicked:", btn.dataset.filter); // DEBUG LOG
             // Remove active class from all
             document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
             // Add to clicked
