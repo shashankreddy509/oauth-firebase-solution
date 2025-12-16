@@ -112,6 +112,9 @@ const ui = {
         document.getElementById('stat-stocks').textContent = utils.formatCurrency((grouped['STOCK'] || 0) + (grouped['MF'] || 0), 'INR');
         document.getElementById('stat-property').textContent = utils.formatCurrency(grouped['PROPERTY'] || 0, 'INR');
         document.getElementById('stat-gold').textContent = utils.formatCurrency(grouped['GOLD'] || 0, 'INR');
+        if (document.getElementById('stat-cash')) {
+            document.getElementById('stat-cash').textContent = utils.formatCurrency(grouped['CASH'] || 0, 'INR');
+        }
     },
 
     // Chart
