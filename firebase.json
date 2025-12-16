@@ -35,6 +35,7 @@
     }
   ],
   "hosting": {
+    "site": "oauth-fyers",
     "public": "public",
     "ignore": [
       "firebase.json",
