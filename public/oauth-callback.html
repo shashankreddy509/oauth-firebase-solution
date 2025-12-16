@@ -126,10 +126,14 @@
             // Whether to show debug information
             debug: true,
             
-            // Your Fyers app credentials (set these)
-            appId: 'J5G6UA982Y-100',
-            appSecret: 'ZEMMIS3WWD'
+            // Your Fyers app credentials - NEVER hardcode these in production!
+            // These should be passed from your backend or loaded from a secure config
+            appId: null, // Will be set by backend
+            appSecret: null // Will be set by backend - NEVER expose this in frontend!
         };
+
+        // WARNING: App credentials should be handled server-side only!
+        // This is a security risk - credentials should never be in frontend code
 
         // Parse URL parameters
         function getUrlParams() {
