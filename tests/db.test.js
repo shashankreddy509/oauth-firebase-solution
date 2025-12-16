@@ -131,4 +131,98 @@ describe('DB Asset Logic', () => {
         }));
     });
 
+    test('updateAsset should update correct doc and convert currency', async () => {
+        const updateData = {
+            quantity: 50,
+            buyPrice: 200,
+            currency: 'USD',
+            ticker: ' msft ' // Should standardize
+        };
+
+        const mockUpdate = jest.fn();
+
+        // Mock chain: users -> doc(uid) -> collection(assets) -> doc(id) -> update
+        mockFirestore.collection.mockReturnValue({
+            doc: () => ({
+                collection: () => ({
+                    doc: (id) => {
+                        if (id === 'test-doc-id') return { update: mockUpdate };
+                        return {};
+                    }
+                })
+            })
+        });
+
+        await db.updateAsset('test-doc-id', updateData);
+
+        expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+            currency: 'INR',
+            buyPrice: 16700, // 200 * 83.5
+            ticker: 'MSFT',
+            updatedAt: 'MOCK_TIMESTAMP'
+        }));
+    });
+
+    test('addAsset should create new document if ticker does not exist', async () => {
+        const newAsset = {
+            ticker: 'TSLA',
+            quantity: 5,
+            buyPrice: 800,
+            currency: 'USD'
+        };
+
+        // Mock empty snapshot (Ticker not found)
+        mockFirestore.collection.mockReturnValue({
+            doc: () => ({
+                collection: () => ({
+                    where: jest.fn().mockReturnValue({
+                        get: jest.fn().mockResolvedValue({ empty: true })
+                    }),
+                    add: mockAdd
+                })
+            })
+        });
+
+        await db.addAsset(newAsset);
+
+        expect(mockAdd).toHaveBeenCalledWith(expect.objectContaining({
+            ticker: 'TSLA',
+            currency: 'INR',
+            buyPrice: 66800, // 800 * 83.5
+            createdAt: 'MOCK_TIMESTAMP'
+        }));
+    });
+
+    test('deleteAsset should call delete on valid doc ref', async () => {
+        const mockDelete = jest.fn();
+
+        mockFirestore.collection.mockReturnValue({
+            doc: (uid) => ({
+                collection: () => ({
+                    doc: (id) => {
+                        if (uid === 'test-user-id' && id === 'target-id') {
+                            return { delete: mockDelete };
+                        }
+                        return {};
+                    }
+                })
+            })
+        });
+
+        await db.deleteAsset('target-id');
+        expect(mockDelete).toHaveBeenCalled();
+    });
+
+    test('Operations should throw/fail if user not authenticated', async () => {
+        // Temporarily nullify currentUser
+        const originalUser = mockAuth.currentUser;
+        mockAuth.currentUser = null;
+
+        await expect(db.addAsset({})).rejects.toThrow('User not authenticated');
+        await expect(db.updateAsset('id', {})).rejects.toThrow('User not authenticated');
+
+        // Restore user
+        mockAuth.currentUser = originalUser;
+    });
+
 });
