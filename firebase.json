@@ -41,6 +41,9 @@
       "**/.*",
       "**/node_modules/**"
     ],
+    "predeploy": [
+      "npm test"
+    ],
     "rewrites": [
       {
         "source": "/oauth/callback",

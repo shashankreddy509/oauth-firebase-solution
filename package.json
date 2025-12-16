@@ -1,5 +1,14 @@
 {
+  "scripts": {
+    "test": "jest",
+    "dev": "npm test && npx firebase emulators:start",
+    "deploy-hosting": "npm test && npx firebase deploy --only hosting",
+    "deploy-functions": "npm test && npx firebase deploy --only functions"
+  },
   "dependencies": {
     "plaid": "^37.0.0"
+  },
+  "devDependencies": {
+    "jest": "^30.2.0"
   }
 }

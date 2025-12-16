@@ -30,3 +30,7 @@ const utils = {
         }).format(date);
     }
 };
+
+if (typeof module !== 'undefined' && module.exports) {
+    module.exports = utils;
+}
