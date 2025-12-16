@@ -1,89 +1,185 @@
 <!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>Welcome to Firebase Hosting</title>
+<html lang="en">
 
-    <!-- update the version number as needed -->
-    <script defer src="/__/firebase/11.8.1/firebase-app-compat.js"></script>
-    <!-- include only the Firebase features as you need -->
-    <script defer src="/__/firebase/11.8.1/firebase-auth-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-database-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-firestore-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-functions-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-messaging-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-storage-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-analytics-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-remote-config-compat.js"></script>
-    <script defer src="/__/firebase/11.8.1/firebase-performance-compat.js"></script>
-    <!-- 
-      initialize the SDK after all desired features are loaded, set useEmulator to false
-      to avoid connecting the SDK to running emulators.
-    -->
-    <script defer src="/__/firebase/init.js?useEmulator=true"></script>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>InvestTrack | Premium Portfolio</title>
 
-    <style media="screen">
-      body { background: #ECEFF1; color: rgba(0,0,0,0.87); font-family: Roboto, Helvetica, Arial, sans-serif; margin: 0; padding: 0; }
-      #message { background: white; max-width: 360px; margin: 100px auto 16px; padding: 32px 24px; border-radius: 3px; }
-      #message h2 { color: #ffa100; font-weight: bold; font-size: 16px; margin: 0 0 8px; }
-      #message h1 { font-size: 22px; font-weight: 300; color: rgba(0,0,0,0.6); margin: 0 0 16px;}
-      #message p { line-height: 140%; margin: 16px 0 24px; font-size: 14px; }
-      #message a { display: block; text-align: center; background: #039be5; text-transform: uppercase; text-decoration: none; color: white; padding: 16px; border-radius: 4px; }
-      #message, #message a { box-shadow: 0 1px 3px rgba(0,0,0,0.12), 0 1px 2px rgba(0,0,0,0.24); }
-      #load { color: rgba(0,0,0,0.4); text-align: center; font-size: 13px; }
-      @media (max-width: 600px) {
-        body, #message { margin-top: 0; background: white; box-shadow: none; }
-        body { border-top: 16px solid #ffa100; }
-      }
-    </style>
-  </head>
-  <body>
-    <div id="message">
-      <h2>Welcome</h2>
-      <h1>Firebase Hosting Setup Complete</h1>
-      <p>You're seeing this because you've successfully setup Firebase Hosting. Now it's time to go build something extraordinary!</p>
-      <a target="_blank" href="https://firebase.google.com/docs/hosting/">Open Hosting Documentation</a>
+  <!-- Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
+    rel="stylesheet">
+  <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+  <!-- Core Styles -->
+  <link rel="stylesheet" href="css/style.css">
+  <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+  <!-- Firebase SDKs -->
+  <script defer src="/__/firebase/11.8.1/firebase-app-compat.js"></script>
+  <script defer src="/__/firebase/11.8.1/firebase-auth-compat.js"></script>
+  <script defer src="/__/firebase/11.8.1/firebase-firestore-compat.js"></script>
+  <script defer src="/__/firebase/init.js"></script>
+</head>
+
+<body>
+
+  <!-- Auth View (Hidden by default) -->
+  <div id="auth-view" class="hidden fade-in"
+    style="height: 100vh; display: flex; flex-direction: column; align-items: center; justify-content: center; background: #f8fafc;">
+    <div>
+      <div style="font-size: 2rem; font-weight: 800; margin-bottom: 2rem; color: #0f172a;">
+        <i class="fa-solid fa-chart-line"></i> InvestTrack
+      </div>
+      <div class="card" style="width: 400px; text-align: center; padding: 3rem;">
+        <h1>Welcome Back</h1>
+        <p class="text-muted" style="margin-bottom: 2rem;">Sign in to track your wealth</p>
+        <button id="googleLoginBtn" class="btn btn-primary" style="width: 100%; justify-content: center;">
+          <i class="fa-brands fa-google"></i> Continue with Google
+        </button>
+      </div>
     </div>
-    <p id="load">Firebase SDK Loading&hellip;</p>
+  </div>
 
-    <script>
-      document.addEventListener('DOMContentLoaded', function() {
-        const loadEl = document.querySelector('#load');
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
-        // // The Firebase SDK is initialized and available here!
-        //
-        // firebase.auth().onAuthStateChanged(user => { });
-        // firebase.database().ref('/path/to/ref').on('value', snapshot => { });
-        // firebase.firestore().doc('/foo/bar').get().then(() => { });
-        // firebase.functions().httpsCallable('yourFunction')().then(() => { });
-        // firebase.messaging().requestPermission().then(() => { });
-        // firebase.storage().ref('/path/to/ref').getDownloadURL().then(() => { });
-        // firebase.analytics(); // call to activate
-        // firebase.analytics().logEvent('tutorial_completed');
-        // firebase.performance(); // call to activate
-        //
-        // // 🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥🔥
+  <!-- App Content -->
+  <div class="app-container hidden" id="app-content">
+    <!-- Top Navigation -->
+    <header class="top-nav">
+      <div class="logo">
+        <i class="fa-solid fa-square-poll-vertical"
+          style="background: #0f172a; color: white; padding: 4px; border-radius: 4px;"></i>
+        <span>InvestTrack</span>
+      </div>
+      <button class="btn btn-primary" onclick="ui.showAddAssetModal()">
+        <i class="fa-solid fa-plus"></i> Add Asset
+      </button>
+    </header>
 
-        try {
-          let app = firebase.app();
-          let features = [
-            'auth', 
-            'database', 
-            'firestore',
-            'functions',
-            'messaging', 
-            'storage', 
-            'analytics', 
-            'remoteConfig',
-            'performance',
-          ].filter(feature => typeof app[feature] === 'function');
-          loadEl.textContent = `Firebase SDK loaded with ${features.join(', ')}`;
-        } catch (e) {
-          console.error(e);
-          loadEl.textContent = 'Error loading the Firebase SDK, check the console.';
-        }
-      });
-    </script>
-  </body>
+    <main class="main-content">
+
+      <!-- Top Widgets -->
+      <div class="dashboard-grid">
+        <!-- Net Worth Card -->
+        <div class="card net-worth-card">
+          <div style="display: flex; justify-content: space-between; align-items: start;">
+            <div>
+              <span class="label-text">Total Net Worth</span>
+              <div class="total-value">₹<span class="net-worth-value">0</span></div>
+              <p class="sub-text">Includes assets in INR and USD (converted @ ₹83.5)</p>
+            </div>
+          </div>
+
+          <div class="stats-row">
+            <div class="stat-box">
+              <span class="stat-icon"><i class="fa-solid fa-chart-line"></i> Stocks</span>
+              <div class="stat-val" id="stat-stocks">₹0</div>
+            </div>
+            <div class="stat-box">
+              <span class="stat-icon"><i class="fa-solid fa-house"></i> Property</span>
+              <div class="stat-val" id="stat-property">₹0</div>
+            </div>
+            <div class="stat-box">
+              <span class="stat-icon"><i class="fa-solid fa-coins"></i> Gold</span>
+              <div class="stat-val" id="stat-gold">₹0</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Allocation Card -->
+        <div class="card allocation-card">
+          <div class="card-header">Allocation</div>
+          <div class="chart-container">
+            <canvas id="allocationChart"></canvas>
+            <!-- Center text overlay could be done with CSS or Plugin. CSS is easier -->
+            <div class="chart-center-text">
+              <small>Net Worth</small>
+              <div class="net-worth-short">₹0</div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Filter Tabs -->
+      <div class="filter-container">
+        <div class="filter-tabs">
+          <button class="filter-btn active" data-filter="ALL">All</button>
+          <button class="filter-btn" data-filter="STOCK">Stocks</button>
+          <button class="filter-btn" data-filter="MF">Mutual Funds</button>
+          <button class="filter-btn" data-filter="PROPERTY">Property</button>
+          <button class="filter-btn" data-filter="GOLD">Gold</button>
+          <button class="filter-btn" data-filter="CASH">Cash</button>
+        </div>
+      </div>
+
+      <!-- Assets Grid -->
+      <div id="assets-list" class="assets-grid">
+        <!-- Assets injected here -->
+      </div>
+
+    </main>
+  </div>
+
+  <!-- Add Asset Modal -->
+  <div id="add-asset-modal" class="hidden modal-overlay">
+    <div class="card modal-card">
+      <div class="modal-header">
+        <h3>Add New Asset</h3>
+        <button onclick="ui.hideModal()" class="close-btn"><i class="fa-solid fa-xmark"></i></button>
+      </div>
+
+      <form id="addAssetForm">
+        <div class="form-group">
+          <label class="form-label">Asset Type</label>
+          <select class="form-control" name="type" required onchange="ui.toggleAssetFields(this.value)">
+            <option value="STOCK">Stock (Equities)</option>
+            <option value="MF">Mutual Fund</option>
+            <option value="PROPERTY">Real Estate (Property)</option>
+            <option value="GOLD">Gold / Precious Metals</option>
+            <option value="CASH">Cash / Bank</option>
+          </select>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Name / Tile</label>
+          <input type="text" class="form-control" name="name" placeholder="Name" required>
+        </div>
+
+        <div id="ticker-field" class="form-group">
+          <label class="form-label">Ticker</label>
+          <input type="text" class="form-control" name="ticker" placeholder="Symbol">
+        </div>
+
+        <div class="row-group">
+          <div>
+            <label class="form-label">Quantity</label>
+            <input type="number" step="any" class="form-control" name="quantity" required>
+          </div>
+          <div>
+            <label class="form-label">Buy Price</label>
+            <input type="number" step="any" class="form-control" name="buyPrice" required>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Currency</label>
+          <select class="form-control" name="currency">
+            <option value="INR">INR (₹)</option>
+            <option value="USD">USD ($)</option>
+          </select>
+        </div>
+
+        <button type="submit" class="btn btn-primary full-width">Save Asset</button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Scripts -->
+  <script src="js/utils.js"></script>
+  <script src="js/db.js"></script>
+  <script src="js/ui.js"></script>
+  <script src="js/app.js"></script>
+</body>
+
 </html>
