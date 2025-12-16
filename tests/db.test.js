@@ -225,4 +225,89 @@ describe('DB Asset Logic', () => {
         mockAuth.currentUser = originalUser;
     });
 
+    test('calculateInvestedValue should strictly use buyPrice', () => {
+        const assets = [
+            { quantity: 10, buyPrice: 100, currentPrice: 200, currency: 'INR' }, // Invested: 1000
+            { quantity: 1, buyPrice: 10, currentPrice: 50, currency: 'USD' }     // Invested: 835 (currentPrice ignored)
+        ];
+
+        const total = db.calculateInvestedValue(assets);
+        expect(total).toBe(1835);
+    });
+
+    test('calculateNetWorth should prefer currentPrice over buyPrice', () => {
+        const assets = [
+            { quantity: 10, buyPrice: 100, currentPrice: 200, currency: 'INR' }, // Value: 2000
+            { quantity: 1, buyPrice: 10, currentPrice: 20, currency: 'USD' }     // Value: 20 * 83.5 = 1670
+        ];
+
+        const total = db.calculateNetWorth(assets);
+        expect(total).toBe(3670);
+    });
+
+    test('addAsset should save currentPrice', async () => {
+        const asset = {
+            ticker: 'NVDA',
+            quantity: 1,
+            buyPrice: 100,
+            currentPrice: 150,
+            currency: 'USD'
+        };
+
+        mockFirestore.collection.mockReturnValue({ doc: () => ({ collection: () => ({ where: () => ({ get: () => ({ empty: true }) }), add: mockAdd }) }) });
+
+        await db.addAsset(asset);
+
+        expect(mockAdd).toHaveBeenCalledWith(expect.objectContaining({
+            currency: 'INR',
+            buyPrice: 8350,   // 100 * 83.5
+            currentPrice: 12525 // 150 * 83.5
+        }));
+    });
+
+    test('addAsset (deduplication) should update currentPrice to LATEST', async () => {
+        const newAsset = {
+            ticker: 'AAPL',
+            quantity: 5,
+            buyPrice: 200,
+            currentPrice: 210, // Latest market price
+            currency: 'INR'
+        };
+
+        // Existing: 10 units @ 100, Current Price was 110 (old)
+        const existingData = { quantity: 10, buyPrice: 100, currentPrice: 110, ticker: 'AAPL' };
+        const mockUpdate = jest.fn();
+
+        const mockWhere = jest.fn().mockReturnValue({
+            get: jest.fn().mockResolvedValue({
+                empty: false,
+                docs: [{
+                    id: 'doc-1',
+                    data: () => existingData,
+                    ref: { update: mockUpdate }
+                }]
+            })
+        });
+
+        mockFirestore.collection.mockReturnValue({
+            doc: () => ({
+                collection: () => ({
+                    where: mockWhere,
+                    add: mockAdd
+                })
+            })
+        });
+
+        await db.addAsset(newAsset);
+
+        // Expected:
+        // Buy Price (Avg): ((10*100) + (5*200)) / 15 = 2000 / 15 = 133.333...
+        // Current Price: Should strictly be the NEW 210
+        expect(mockUpdate).toHaveBeenCalledWith(expect.objectContaining({
+            quantity: 15,
+            buyPrice: expect.closeTo(133.33, 2),
+            currentPrice: 210
+        }));
+    });
+
 });

@@ -69,10 +69,16 @@ const ui = {
             
             <div class="asset-stats">
                 <div class="text-muted" style="font-size: 0.85rem;">
-                    ${asset.quantity} units @ ${utils.formatCurrency(asset.buyPrice, asset.currency)}
+                    <div>Inv: ${utils.formatCurrency(asset.quantity * asset.buyPrice, asset.currency)}</div>
+                    <div style="font-size: 0.75rem; margin-top: 2px;">
+                       ${((asset.currentPrice - asset.buyPrice) / asset.buyPrice * 100).toFixed(2)}%
+                    </div>
                 </div>
-                <div class="asset-total">
-                    ${utils.formatCurrency(value, asset.currency)}
+                <div class="asset-total" style="text-align: right;">
+                    ${utils.formatCurrency(asset.quantity * (asset.currentPrice || asset.buyPrice), asset.currency)}
+                    <div style="font-size: 0.75rem; color: ${(asset.currentPrice || asset.buyPrice) >= asset.buyPrice ? '#10b981' : '#ef4444'}; font-weight: 500;">
+                        ${(asset.currentPrice || asset.buyPrice) >= asset.buyPrice ? '+' : ''}${utils.formatCurrency((asset.quantity * (asset.currentPrice || asset.buyPrice)) - (asset.quantity * asset.buyPrice), asset.currency)}
+                    </div>
                 </div>
             </div>
             
@@ -123,6 +129,16 @@ const ui = {
         // Update Big Number
         document.querySelector('.net-worth-value').textContent = parseInt(netWorth).toLocaleString('en-IN');
         document.querySelector('.net-worth-short').textContent = '₹' + parseInt(netWorth).toLocaleString('en-IN');
+
+        // P&L Calculation for HEADLINE (Only for ALL view for now, or filtered)
+        const invested = db.calculateInvestedValue(assets);
+        const pl = netWorth - invested;
+        const plPercent = invested > 0 ? (pl / invested) * 100 : 0;
+        const subText = `Invested: ${utils.formatCurrency(invested, 'INR')} • ${pl >= 0 ? '+' : ''}${utils.formatCurrency(pl, 'INR')} (${plPercent.toFixed(2)}%)`;
+
+        const subTextEl = document.querySelector('.sub-text');
+        if (subTextEl) subTextEl.textContent = subText;
+        if (subTextEl) subTextEl.style.color = pl >= 0 ? '#10b981' : '#ef4444'; // Green or Red
 
         // Update Boxes
         document.getElementById('stat-stocks').textContent = utils.formatCurrency((grouped['STOCK'] || 0) + (grouped['MF'] || 0), 'INR');
@@ -244,6 +260,8 @@ const ui = {
         // Handle Price (Create was in INR mostly, but form allows currency selection)
         // For simplicity, we show the stored Buy Price and stored Currency
         form.buyPrice.value = asset.buyPrice;
+        // If currentPrice exists, use it. Else fall back to buyPrice
+        form.currentPrice.value = asset.currentPrice || asset.buyPrice;
         form.currency.value = asset.currency;
 
         ui.toggleAssetFields(asset.type);

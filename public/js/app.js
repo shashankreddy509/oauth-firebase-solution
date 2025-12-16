@@ -76,6 +76,7 @@ document.addEventListener('DOMContentLoaded', () => {
                 ticker: addAssetForm.querySelector('[name="ticker"]').value,
                 quantity: parseFloat(formData.get('quantity')),
                 buyPrice: parseFloat(formData.get('buyPrice')),
+                currentPrice: parseFloat(formData.get('currentPrice')) || parseFloat(formData.get('buyPrice')), // Default to Buy Price
                 currency: formData.get('currency'),
                 notes: ''
             };

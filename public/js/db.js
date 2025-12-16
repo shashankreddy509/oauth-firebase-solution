@@ -13,7 +13,11 @@ const db = {
         if (processedData.currency === 'USD') {
             const rate = 83.5; // Fixed rate as per utils.js
             processedData.buyPrice = processedData.buyPrice * rate;
+            processedData.currentPrice = (processedData.currentPrice || processedData.buyPrice) * rate;
             processedData.currency = 'INR';
+        } else {
+            // Ensure currentPrice is set even for INR
+            processedData.currentPrice = processedData.currentPrice || processedData.buyPrice;
         }
 
         const assetsRef = db.usersCol().doc(user.uid).collection('assets');
@@ -31,16 +35,22 @@ const db = {
 
                 const totalQuantity = parseFloat(existing.quantity || 0) + parseFloat(processedData.quantity || 0);
 
-                // Weighted Average Price
+                // Weighted Average Price for BUY PRICE
                 // ((OldQty * OldPrice) + (NewQty * NewPrice)) / TotalQty
                 const oldTotalValue = (parseFloat(existing.quantity || 0) * parseFloat(existing.buyPrice || 0));
                 const newAddValue = (parseFloat(processedData.quantity || 0) * parseFloat(processedData.buyPrice || 0));
 
-                const newAvgPrice = (oldTotalValue + newAddValue) / totalQuantity;
+                const newAvgBuyPrice = (oldTotalValue + newAddValue) / totalQuantity;
+
+                // For Current Price: Use the LATEST provided current price (from this new entry)
+                // If the user didn't provide it explicitly, app.js defaulted it to buyPrice. 
+                // We assume the new entry carries the latest market data.
+                const newCurrentPrice = processedData.currentPrice;
 
                 return await doc.ref.update({
                     quantity: totalQuantity,
-                    buyPrice: newAvgPrice,
+                    buyPrice: newAvgBuyPrice,
+                    currentPrice: newCurrentPrice,
                     updatedAt: firebase.firestore.FieldValue.serverTimestamp()
                 });
             }
@@ -67,7 +77,10 @@ const db = {
         if (processedData.currency === 'USD') {
             const rate = 83.5;
             processedData.buyPrice = processedData.buyPrice * rate;
+            processedData.currentPrice = (processedData.currentPrice || processedData.buyPrice) * rate;
             processedData.currency = 'INR';
+        } else {
+            processedData.currentPrice = processedData.currentPrice || processedData.buyPrice;
         }
 
         processedData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
@@ -110,8 +123,19 @@ const db = {
     calculateNetWorth: (assets) => {
         if (!assets || !Array.isArray(assets)) return 0;
         return assets.reduce((total, asset) => {
-            const value = asset.quantity * asset.buyPrice; // Simple calculation (price * qty)
-            // Ideally we fetch real-time price here. For now using buyPrice.
+            // Use Current Price if available, else Buy Price
+            const price = asset.currentPrice || asset.buyPrice;
+            const value = asset.quantity * price;
+            const valueInINR = utils.convertToINR(value, asset.currency);
+            return total + valueInINR;
+        }, 0);
+    },
+
+    // Get total invested value (for P&L)
+    calculateInvestedValue: (assets) => {
+        if (!assets || !Array.isArray(assets)) return 0;
+        return assets.reduce((total, asset) => {
+            const value = asset.quantity * asset.buyPrice;
             const valueInINR = utils.convertToINR(value, asset.currency);
             return total + valueInINR;
         }, 0);
@@ -122,7 +146,8 @@ const db = {
         if (!assets || !Array.isArray(assets)) return {};
         return assets.reduce((acc, asset) => {
             const type = asset.type;
-            const value = asset.quantity * asset.buyPrice;
+            const price = asset.currentPrice || asset.buyPrice;
+            const value = asset.quantity * price;
             const valueInINR = utils.convertToINR(value, asset.currency);
 
             if (!acc[type]) acc[type] = 0;
