@@ -57,6 +57,29 @@ const db = {
         return await assetsRef.add(data);
     },
 
+    // Update specific asset by ID
+    updateAsset: async (docId, assetData) => {
+        const user = firebase.auth().currentUser;
+        if (!user) throw new Error('User not authenticated');
+
+        // Automatic Currency Conversion (USD -> INR)
+        let processedData = { ...assetData };
+        if (processedData.currency === 'USD') {
+            const rate = 83.5;
+            processedData.buyPrice = processedData.buyPrice * rate;
+            processedData.currency = 'INR';
+        }
+
+        processedData.updatedAt = firebase.firestore.FieldValue.serverTimestamp();
+
+        // Ensure ticker is uppercase if present
+        if (processedData.ticker) {
+            processedData.ticker = processedData.ticker.trim().toUpperCase();
+        }
+
+        return await db.usersCol().doc(user.uid).collection('assets').doc(docId).update(processedData);
+    },
+
     // Get all assets (Real-time listener)
     listenToAssets: (callback) => {
         const user = firebase.auth().currentUser;

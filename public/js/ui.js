@@ -76,9 +76,12 @@ const ui = {
                 </div>
             </div>
             
-            <div style="margin-top: 10px; display: flex; justify-content: flex-end;">
-                 <button onclick="db.deleteAsset('${asset.id}')" style="background:none; border:none; color: #ef4444; cursor: pointer; font-size: 0.8rem;">
-                    Remove
+            <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 15px;">
+                 <button onclick="ui.editAsset('${asset.id}')" title="Edit Asset" style="background:none; border:none; color: var(--text-muted); cursor: pointer; font-size: 1rem; transition: color 0.2s;">
+                    <i class="fa-regular fa-pen-to-square"></i>
+                 </button>
+                 <button onclick="db.deleteAsset('${asset.id}')" title="Delete Asset" style="background:none; border:none; color: var(--text-muted); cursor: pointer; font-size: 1rem; transition: color 0.2s;">
+                    <i class="fa-regular fa-trash-can hover-red"></i>
                  </button>
             </div>
         `;
@@ -156,6 +159,7 @@ const ui = {
     // Modals
     showAddAssetModal: (type = 'STOCK') => {
         document.getElementById('add-asset-modal').classList.remove('hidden');
+        document.querySelector('.modal-header h3').textContent = 'Add New Asset';
 
         // Select the correct option in dropdown
         const select = document.querySelector('select[name="type"]');
@@ -164,10 +168,37 @@ const ui = {
             ui.toggleAssetFields(type);
         }
     },
+
+    editAsset: (id) => {
+        const asset = ui.allAssets.find(a => a.id === id);
+        if (!asset) return;
+
+        document.getElementById('add-asset-modal').classList.remove('hidden');
+        document.querySelector('.modal-header h3').textContent = 'Edit Asset';
+
+        // Populate Form
+        const form = document.getElementById('addAssetForm');
+        form.assetId.value = asset.id;
+        form.type.value = asset.type;
+        form.name.value = asset.name;
+        form.ticker.value = asset.ticker || '';
+        form.quantity.value = asset.quantity;
+
+        // Handle Price (Create was in INR mostly, but form allows currency selection)
+        // For simplicity, we show the stored Buy Price and stored Currency
+        form.buyPrice.value = asset.buyPrice;
+        form.currency.value = asset.currency;
+
+        ui.toggleAssetFields(asset.type);
+    },
+
     hideModal: () => {
         document.getElementById('add-asset-modal').classList.add('hidden');
-        document.getElementById('addAssetForm').reset();
+        const form = document.getElementById('addAssetForm');
+        form.reset();
+        form.assetId.value = ''; // Clear ID
     },
+
     toggleAssetFields: (type) => {
         const ticker = document.getElementById('ticker-field');
         if (ticker) ticker.style.display = (type === 'STOCK' || type === 'MF') ? 'block' : 'none';

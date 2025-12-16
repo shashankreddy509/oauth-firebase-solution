@@ -130,6 +130,7 @@
       </div>
 
       <form id="addAssetForm">
+        <input type="hidden" name="assetId" id="assetId">
         <div class="form-group">
           <label class="form-label">Asset Type</label>
           <select class="form-control" name="type" required onchange="ui.toggleAssetFields(this.value)">

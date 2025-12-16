@@ -2,7 +2,7 @@
 // Connect to Emulators if on localhost
 const connectEmulators = () => {
     if (location.hostname === "localhost" || location.hostname === "127.0.0.1") {
-        console.log("Using Firebase Emulators");
+
         if (firebase.auth) firebase.auth().useEmulator("http://127.0.0.1:9099");
         if (firebase.firestore) firebase.firestore().useEmulator("127.0.0.1", 8080);
     }
@@ -17,7 +17,7 @@ document.addEventListener('DOMContentLoaded', () => {
     // 1. Auth Listener
     firebase.auth().onAuthStateChanged(user => {
         if (user) {
-            console.log("Logged in");
+
             authView.classList.add('hidden');
             appContent.classList.remove('hidden');
 
@@ -29,7 +29,7 @@ document.addEventListener('DOMContentLoaded', () => {
             });
 
         } else {
-            console.log("Logged out");
+
             authView.classList.remove('hidden');
             appContent.classList.add('hidden');
         }
@@ -72,18 +72,22 @@ document.addEventListener('DOMContentLoaded', () => {
             const data = {
                 type: formData.get('type'),
                 name: formData.get('name'),
-                name: formData.get('name'),
-                ticker: addAssetForm.querySelector('[name="ticker"]').value, // Explicit read
+                ticker: addAssetForm.querySelector('[name="ticker"]').value,
                 quantity: parseFloat(formData.get('quantity')),
                 buyPrice: parseFloat(formData.get('buyPrice')),
                 currency: formData.get('currency'),
                 notes: ''
             };
 
+            const assetId = formData.get('assetId');
+
             try {
-                await db.addAsset(data);
+                if (assetId) {
+                    await db.updateAsset(assetId, data);
+                } else {
+                    await db.addAsset(data);
+                }
                 ui.hideModal();
-                // Notification?
             } catch (error) {
                 console.error(error);
                 alert("Error adding asset: " + error.message);

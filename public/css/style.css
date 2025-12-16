@@ -454,3 +454,7 @@ body {
 .empty-action:hover {
     text-decoration: underline;
 }
+
+.hover-red:hover {
+    color: #ef4444;
+}
