@@ -310,4 +310,72 @@ describe('DB Asset Logic', () => {
         }));
     });
 
+    // --- Wishlist Tests ---
+
+    describe('Wishlist Logic', () => {
+
+        test('addToWishlist should throw if not authenticated', async () => {
+            const originalUser = mockAuth.currentUser;
+            mockAuth.currentUser = null;
+
+            await expect(db.addToWishlist({})).rejects.toThrow('User not authenticated');
+
+            mockAuth.currentUser = originalUser;
+        });
+
+        test('addToWishlist should add document to wishlist collection', async () => {
+            const item = {
+                ticker: 'AMZN',
+                price: 1500
+            };
+
+            const mockAddWishlist = jest.fn();
+
+            mockFirestore.collection.mockReturnValue({
+                doc: (uid) => ({
+                    collection: (name) => {
+                        if (uid === 'test-user-id' && name === 'wishlist') {
+                            return { add: mockAddWishlist };
+                        }
+                        return {};
+                    }
+                })
+            });
+
+            await db.addToWishlist(item);
+
+            expect(mockAddWishlist).toHaveBeenCalledWith(expect.objectContaining({
+                ticker: 'AMZN',
+                price: 1500,
+                createdAt: 'MOCK_TIMESTAMP'
+            }));
+        });
+
+        test('deleteFromWishlist should delete document from wishlist collection', async () => {
+            const mockDeleteWishlist = jest.fn();
+
+            mockFirestore.collection.mockReturnValue({
+                doc: (uid) => ({
+                    collection: (name) => {
+                        if (uid === 'test-user-id' && name === 'wishlist') {
+                            return {
+                                doc: (id) => {
+                                    if (id === 'wishlist-item-id') {
+                                        return { delete: mockDeleteWishlist };
+                                    }
+                                }
+                            };
+                        }
+                        return {};
+                    }
+                })
+            });
+
+            await db.deleteFromWishlist('wishlist-item-id');
+
+            expect(mockDeleteWishlist).toHaveBeenCalled();
+        });
+
+    });
+
 });

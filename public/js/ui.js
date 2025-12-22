@@ -1,6 +1,87 @@
 const ui = {
     allAssets: [],
+    stockData: [], // Store loaded stock data
     currentFilter: 'ALL',
+
+    // Load Stock Data
+    loadStockData: async () => {
+        try {
+            const response = await fetch('js/stocks.json');
+            if (!response.ok) throw new Error("Failed to load stocks");
+            ui.stockData = await response.json();
+            console.log("Loaded " + ui.stockData.length + " stocks.");
+            ui.setupAutocomplete();
+        } catch (e) {
+            console.error("Stock data load error:", e);
+        }
+    },
+
+    setupAutocomplete: () => {
+        const setup = (inputId, listId, onSelect) => {
+            const input = document.getElementById(inputId);
+            if (!input) return;
+
+            // Create list container if not exists
+            let list = document.getElementById(listId);
+            if (!list) {
+                list = document.createElement('div');
+                list.id = listId;
+                list.className = 'autocomplete-items hidden';
+                input.parentNode.style.position = 'relative'; // Ensure parent is relative
+                input.parentNode.appendChild(list);
+            }
+
+            input.addEventListener('input', function () {
+                const val = this.value;
+                if (!val) {
+                    list.innerHTML = '';
+                    list.classList.add('hidden');
+                    return;
+                }
+
+                // Filter matches (Tickers start with, OR Name includes)
+                // Limit to 10
+                const matches = ui.stockData.filter(s =>
+                    s.ticker.startsWith(val.toUpperCase()) ||
+                    s.name.toUpperCase().includes(val.toUpperCase())
+                ).slice(0, 10);
+
+                list.innerHTML = '';
+                if (matches.length > 0) {
+                    list.classList.remove('hidden');
+                    matches.forEach(match => {
+                        const item = document.createElement('div');
+                        item.innerHTML = `<strong>${match.ticker}</strong> - ${match.name}`;
+                        item.addEventListener('click', function () {
+                            input.value = match.ticker;
+                            list.innerHTML = '';
+                            list.classList.add('hidden');
+                            if (onSelect) onSelect(match);
+                        });
+                        list.appendChild(item);
+                    });
+                } else {
+                    list.classList.add('hidden');
+                }
+            });
+
+            // Close list when clicking elsewhere
+            document.addEventListener('click', function (e) {
+                if (e.target !== input && e.target !== list) {
+                    list.innerHTML = '';
+                    list.classList.add('hidden');
+                }
+            });
+        };
+
+        // Inputs to attach
+        setup('wishlist-ticker-input', 'wishlist-autocomplete-list', (match) => {
+            // Auto-submit for Wishlist
+            const form = document.getElementById('addWishlistForm');
+            if (form) form.requestSubmit();
+        });
+        setup('asset-ticker-input', 'asset-autocomplete-list');
+    },
 
     // Filter Logic
     filterAssets: (type) => {
@@ -277,5 +358,69 @@ const ui = {
     toggleAssetFields: (type) => {
         const ticker = document.getElementById('ticker-field');
         if (ticker) ticker.style.display = (type === 'STOCK' || type === 'MF') ? 'block' : 'none';
+    },
+
+    // --- Wishlist UI ---
+
+    toggleWishlist: () => {
+        const dashboard = document.getElementById('dashboard-view');
+        const wishlist = document.getElementById('wishlist-view');
+        const btn = document.getElementById('nav-wishlist-btn');
+
+        if (dashboard.classList.contains('hidden')) {
+            // Show Dashboard
+            dashboard.classList.remove('hidden');
+            wishlist.classList.add('hidden');
+            btn.classList.replace('btn-primary', 'btn-secondary'); // Inactive style
+        } else {
+            // Show Wishlist
+            dashboard.classList.add('hidden');
+            wishlist.classList.remove('hidden');
+            btn.classList.replace('btn-secondary', 'btn-primary'); // Active style
+        }
+    },
+
+    renderWishlist: (items) => {
+        const container = document.getElementById('wishlist-list');
+        container.innerHTML = '';
+
+        if (!items || items.length === 0) {
+            container.innerHTML = `
+                <div class="empty-state">
+                     <div class="empty-icon"><i class="fa-regular fa-star"></i></div>
+                     <p>Your wishlist is empty.</p>
+                </div>
+            `;
+            return;
+        }
+
+        items.forEach(item => {
+            const card = document.createElement('div');
+            card.className = 'asset-card fade-in';
+            card.innerHTML = `
+                <div class="asset-header">
+                    <div class="asset-icon-box" style="background: rgba(99, 102, 241, 0.1); color: #6366f1;">
+                        <i class="fa-solid fa-crosshairs"></i>
+                    </div>
+                    <div class="asset-info">
+                        <div style="display: flex; justify-content: space-between;">
+                            <div class="asset-name" style="font-size: 1.1rem; font-weight: 600;">${item.ticker}</div>
+                        </div>
+                        <!-- Name removed, show Ticker as main title -->
+                    </div>
+                </div>
+
+                <div class="asset-stats" style="display: none;">
+                     <!-- Target Price Removed -->
+                </div>
+
+                <div style="margin-top: 10px; display: flex; justify-content: flex-end; gap: 15px;">
+                     <button onclick="db.deleteFromWishlist('${item.id}')" title="Remove" style="background:none; border:none; color: var(--text-muted); cursor: pointer; font-size: 1rem;">
+                        <i class="fa-regular fa-trash-can hover-red"></i>
+                     </button>
+                </div>
+            `;
+            container.appendChild(card);
+        });
     }
 };

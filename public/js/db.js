@@ -154,6 +154,46 @@ const db = {
             acc[type] += valueInINR;
             return acc;
         }, {});
+    },
+
+    // --- Wishlist Functions ---
+
+    // Add to Wishlist
+    addToWishlist: async (data) => {
+        const user = firebase.auth().currentUser;
+        if (!user) throw new Error('User not authenticated');
+
+        const wishlistRef = db.usersCol().doc(user.uid).collection('wishlist');
+
+        return await wishlistRef.add({
+            ...data,
+            createdAt: firebase.firestore.FieldValue.serverTimestamp()
+        });
+    },
+
+    // Delete from Wishlist
+    deleteFromWishlist: async (id) => {
+        const user = firebase.auth().currentUser;
+        if (!user) return;
+        await db.usersCol().doc(user.uid).collection('wishlist').doc(id).delete();
+    },
+
+    // Listen to Wishlist
+    listenToWishlist: (callback) => {
+        const user = firebase.auth().currentUser;
+        if (!user) return;
+
+        return db.usersCol().doc(user.uid).collection('wishlist')
+            .orderBy('createdAt', 'desc')
+            .onSnapshot(snapshot => {
+                const items = snapshot.docs.map(doc => ({
+                    id: doc.id,
+                    ...doc.data()
+                }));
+                callback(items);
+            }, error => {
+                console.error("Error fetching wishlist:", error);
+            });
     }
 };
 

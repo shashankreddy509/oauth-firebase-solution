@@ -11,9 +11,8 @@ const admin = require('firebase-admin');
 const express = require('express');
 const cors = require('cors');
 const crypto = require('crypto');
-const { Configuration, PlaidApi, PlaidEnvironments } = require("plaid");
 
-const {onRequest} = require("firebase-functions/v2/https");
+const { onRequest } = require("firebase-functions/v2/https");
 const logger = require("firebase-functions/logger");
 
 // Initialize Firebase Admin
@@ -23,27 +22,6 @@ const db = admin.firestore();
 // Load environment variables
 require('dotenv').config();
 
-// Configure Plaid using environment variables
-const plaidEnvironment = process.env.PLAID_ENVIRONMENT === 'production' ? PlaidEnvironments.production : PlaidEnvironments.sandbox;
-
-const configuration = new Configuration({
-  basePath: plaidEnvironment,
-  baseOptions: {
-    headers: {
-      "PLAID-CLIENT-ID": process.env.PLAID_CLIENT_ID,
-      "PLAID-SECRET": process.env.PLAID_SECRET,
-    },
-  },
-});
-
-// Validate required configuration
-if (!process.env.PLAID_CLIENT_ID || !process.env.PLAID_SECRET) {
-  throw new Error('Missing required Plaid configuration. Please set PLAID_CLIENT_ID and PLAID_SECRET environment variables.');
-}
-
-const plaidClient = new PlaidApi(configuration);
-
-// Note: Plaid functions have been moved to Express API endpoints below
 
 // Create Express app
 const app = express();
@@ -90,7 +68,7 @@ async function authenticateUser(req) {
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
         throw new Error('Missing or invalid authorization header');
     }
-    
+
     const idToken = authHeader.split('Bearer ')[1];
     try {
         const decodedToken = await admin.auth().verifyIdToken(idToken);
@@ -108,15 +86,15 @@ async function authenticateUser(req) {
 app.post('/plaid/exchange-token', async (req, res) => {
     try {
         const { public_token } = req.body;
-        
+
         // Validate required fields
         validateRequiredFields(req.body, ['public_token']);
-        
+
         // Authenticate user
         const userId = await authenticateUser(req);
-        
+
         console.log('Plaid token exchange request for user:', userId);
-        
+
         const response = await plaidClient.itemPublicTokenExchange({ public_token });
         const accessToken = response.data.access_token;
         const itemId = response.data.item_id;
@@ -135,7 +113,7 @@ app.post('/plaid/exchange-token', async (req, res) => {
             message: 'Token exchanged successfully',
             itemId: itemId
         });
-        
+
     } catch (error) {
         console.error('Plaid token exchange error:', error);
         res.status(500).json({
@@ -150,15 +128,15 @@ app.post('/plaid/exchange-token', async (req, res) => {
 app.post('/plaid/get-transactions', async (req, res) => {
     try {
         const { startDate, endDate, count = 100, offset = 0 } = req.body;
-        
+
         // Validate required fields
         validateRequiredFields(req.body, ['startDate', 'endDate']);
-        
+
         // Authenticate user
         const userId = await authenticateUser(req);
-        
+
         console.log('Plaid transactions request for user:', userId, { startDate, endDate });
-        
+
         const userDoc = await db.collection("users").doc(userId).get();
         if (!userDoc.exists) {
             return res.status(404).json({
@@ -210,7 +188,7 @@ app.post('/plaid/get-transactions', async (req, res) => {
                 offset: offset
             }
         });
-        
+
     } catch (error) {
         console.error('Plaid transactions fetch error:', error);
         res.status(500).json({
@@ -225,10 +203,10 @@ app.post('/plaid/get-transactions', async (req, res) => {
 app.post('/plaid/create-link-token', async (req, res) => {
     try {
         const { client_name = "CMP Expense Tracker", products = ["transactions"], country_codes = ["US"], language = "en" } = req.body;
-        
+
         // Authenticate user
         const userId = await authenticateUser(req);
-        
+
         console.log('Plaid link token creation request for user:', userId);
 
         const response = await plaidClient.linkTokenCreate({
@@ -249,7 +227,7 @@ app.post('/plaid/create-link-token', async (req, res) => {
             link_token: response.data.link_token,
             expiration: response.data.expiration
         });
-        
+
     } catch (error) {
         console.error('Plaid link token creation error:', error.response?.data || error);
         res.status(500).json({
@@ -268,15 +246,15 @@ app.post('/plaid/create-link-token', async (req, res) => {
 app.post('/oauth/exchange-token', async (req, res) => {
     try {
         const { code, appId, appSecret, userId } = req.body;
-        
+
         // Validate required fields
         validateRequiredFields(req.body, ['code', 'appId', 'appSecret']);
-        
+
         console.log('Token exchange request:', { code: code.substring(0, 10) + '...', appId });
-        
+
         // Generate app ID hash
         const appIdHash = generateAppIdHash(appId, appSecret);
-        
+
         // Call Fyers API to exchange code for token
         const fyersResponse = await fetch('https://api-t1.fyers.in/api/v3/validate-authcode', {
             method: 'POST',
@@ -289,21 +267,21 @@ app.post('/oauth/exchange-token', async (req, res) => {
                 code: code
             })
         });
-        
+
         if (!fyersResponse.ok) {
             const errorText = await fyersResponse.text();
             throw new Error(`Fyers API error: ${fyersResponse.status} - ${errorText}`);
         }
-        
+
         const tokenData = await fyersResponse.json();
-        
+
         if (!tokenData.access_token) {
             throw new Error('No access token received from Fyers API');
         }
-        
+
         // Generate user ID if not provided
         const finalUserId = userId || generateUserId(code);
-        
+
         // Prepare data for Firestore
         const tokenRecord = {
             userId: finalUserId,
@@ -318,12 +296,12 @@ app.post('/oauth/exchange-token', async (req, res) => {
             isActive: true,
             source: 'oauth_exchange'
         };
-        
+
         // Save to Firestore
         const docRef = await db.collection('oauth_tokens').add(tokenRecord);
-        
+
         console.log('Token saved successfully:', docRef.id);
-        
+
         // Return success response (without sensitive token data)
         res.status(200).json({
             success: true,
@@ -333,7 +311,7 @@ app.post('/oauth/exchange-token', async (req, res) => {
             expiresIn: tokenData.expires_in,
             tokenType: tokenData.token_type
         });
-        
+
     } catch (error) {
         console.error('Token exchange error:', error);
         res.status(500).json({
@@ -348,37 +326,37 @@ app.post('/oauth/exchange-token', async (req, res) => {
 // Endpoint 2: Save token data directly (for when you already have the token)
 app.post('/oauth/save-token', async (req, res) => {
     try {
-        const { 
-            userId, 
-            accessToken, 
-            refreshToken, 
-            tokenType, 
-            expiresIn, 
-            scope, 
-            appId 
+        const {
+            userId,
+            accessToken,
+            refreshToken,
+            tokenType,
+            expiresIn,
+            scope,
+            appId
         } = req.body;
-        
+
         // Validate required fields
         validateRequiredFields(req.body, ['userId', 'accessToken', 'appId']);
-        
+
         console.log('Direct token save request:', { userId, appId });
-        
+
         // Check if token already exists for this user and app
         const existingTokenQuery = await db.collection('oauth_tokens')
             .where('userId', '==', userId)
             .where('appId', '==', appId)
             .where('isActive', '==', true)
             .get();
-        
+
         // Deactivate existing tokens for this user/app combination
         const batch = db.batch();
         existingTokenQuery.forEach(doc => {
-            batch.update(doc.ref, { 
-                isActive: false, 
-                deactivatedAt: admin.firestore.FieldValue.serverTimestamp() 
+            batch.update(doc.ref, {
+                isActive: false,
+                deactivatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
         });
-        
+
         // Prepare new token record
         const tokenRecord = {
             userId: userId,
@@ -393,16 +371,16 @@ app.post('/oauth/save-token', async (req, res) => {
             isActive: true,
             source: 'direct_save'
         };
-        
+
         // Add new token to batch
         const newTokenRef = db.collection('oauth_tokens').doc();
         batch.set(newTokenRef, tokenRecord);
-        
+
         // Execute batch write
         await batch.commit();
-        
+
         console.log('Token saved successfully:', newTokenRef.id);
-        
+
         res.status(200).json({
             success: true,
             message: 'Token saved successfully',
@@ -410,7 +388,7 @@ app.post('/oauth/save-token', async (req, res) => {
             userId: userId,
             replacedTokens: existingTokenQuery.size
         });
-        
+
     } catch (error) {
         console.error('Token save error:', error);
         res.status(500).json({
@@ -426,33 +404,33 @@ app.get('/oauth/get-token/:userId', async (req, res) => {
     try {
         const { userId } = req.params;
         const { appId } = req.query;
-        
+
         if (!userId) {
             throw new Error('User ID is required');
         }
-        
+
         let query = db.collection('oauth_tokens')
             .where('userId', '==', userId)
             .where('isActive', '==', true)
             .orderBy('createdAt', 'desc')
             .limit(1);
-        
+
         if (appId) {
             query = query.where('appId', '==', appId);
         }
-        
+
         const snapshot = await query.get();
-        
+
         if (snapshot.empty) {
             return res.status(404).json({
                 success: false,
                 message: 'No active token found for user'
             });
         }
-        
+
         const tokenDoc = snapshot.docs[0];
         const tokenData = tokenDoc.data();
-        
+
         // Return token data (be careful with sensitive information)
         res.status(200).json({
             success: true,
@@ -466,7 +444,7 @@ app.get('/oauth/get-token/:userId', async (req, res) => {
             // Only return access token if explicitly requested
             ...(req.query.includeToken === 'true' && { accessToken: tokenData.accessToken })
         });
-        
+
     } catch (error) {
         console.error('Get token error:', error);
         res.status(500).json({
@@ -480,11 +458,11 @@ app.get('/oauth/get-token/:userId', async (req, res) => {
 app.post('/oauth/revoke-token', async (req, res) => {
     try {
         const { userId, tokenId, appId } = req.body;
-        
+
         if (!userId && !tokenId) {
             throw new Error('Either userId or tokenId is required');
         }
-        
+
         let query;
         if (tokenId) {
             // Revoke specific token
@@ -494,7 +472,7 @@ app.post('/oauth/revoke-token', async (req, res) => {
                 revokedAt: admin.firestore.FieldValue.serverTimestamp(),
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
-            
+
             res.status(200).json({
                 success: true,
                 message: 'Token revoked successfully',
@@ -505,14 +483,14 @@ app.post('/oauth/revoke-token', async (req, res) => {
             query = db.collection('oauth_tokens')
                 .where('userId', '==', userId)
                 .where('isActive', '==', true);
-            
+
             if (appId) {
                 query = query.where('appId', '==', appId);
             }
-            
+
             const snapshot = await query.get();
             const batch = db.batch();
-            
+
             snapshot.forEach(doc => {
                 batch.update(doc.ref, {
                     isActive: false,
@@ -520,16 +498,16 @@ app.post('/oauth/revoke-token', async (req, res) => {
                     updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
             });
-            
+
             await batch.commit();
-            
+
             res.status(200).json({
                 success: true,
                 message: `${snapshot.size} token(s) revoked successfully`,
                 revokedCount: snapshot.size
             });
         }
-        
+
     } catch (error) {
         console.error('Token revoke error:', error);
         res.status(500).json({
@@ -543,7 +521,7 @@ app.post('/oauth/revoke-token', async (req, res) => {
 app.post('/api/save-token', async (req, res) => {
     try {
         const tokenData = req.body;
-        
+
         // Validate the required fields
         if (!tokenData.code || !tokenData.access_token || !tokenData.refresh_token) {
             throw new Error('Missing required fields: code, access_token, or refresh_token');

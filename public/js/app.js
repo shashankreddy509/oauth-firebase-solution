@@ -28,6 +28,18 @@ document.addEventListener('DOMContentLoaded', () => {
                 ui.renderAssets();
             });
 
+            db.listenToAssets((assets) => {
+                ui.allAssets = assets;
+                ui.renderAssets();
+            });
+
+            db.listenToWishlist((items) => {
+                ui.renderWishlist(items);
+            });
+
+            // Load Stock master data for search
+            ui.loadStockData();
+
         } else {
 
             authView.classList.remove('hidden');
@@ -96,6 +108,41 @@ document.addEventListener('DOMContentLoaded', () => {
             } finally {
                 submitBtn.disabled = false;
                 submitBtn.textContent = 'Save Asset';
+            }
+        });
+    }
+
+    // 7. Add Wishlist Form Handler
+    const addWishlistForm = document.getElementById('addWishlistForm');
+    if (addWishlistForm) {
+        addWishlistForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const submitBtn = addWishlistForm.querySelector('button[type="submit"]');
+            if (submitBtn) {
+                submitBtn.disabled = true;
+                submitBtn.textContent = 'Adding...';
+            }
+
+            const formData = new FormData(e.target);
+            const ticker = formData.get('ticker') ? formData.get('ticker').trim().toUpperCase() : null;
+
+            const data = {
+                name: ticker, // Use Ticker as Name since Name field is removed
+                ticker: ticker,
+                targetPrice: null // Removed field
+            };
+
+            try {
+                await db.addToWishlist(data);
+                addWishlistForm.reset();
+            } catch (error) {
+                console.error(error);
+                alert("Error adding to wishlist: " + error.message);
+            } finally {
+                if (submitBtn) {
+                    submitBtn.disabled = false;
+                    submitBtn.textContent = 'Add';
+                }
             }
         });
     }
